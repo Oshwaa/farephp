@@ -1,4 +1,4 @@
-?php
+<?php
 require_once "C:\\xampp\\htdocs\\phpprograms\\config.php";
 
 // Create connection
@@ -17,15 +17,11 @@ $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
 
-$rows = array();
-
 if ($result->num_rows > 0) {
-    while ($row = $result->fetch_assoc()) {
-        $rows[] = $row;
-    }
-    echo json_encode($rows);
+    $row = $result->fetch_assoc();
+    echo json_encode($row);
 } else {
-    echo json_encode(array("message" => "No results"));
+    echo json_encode([]); // or echo json_encode(array()) for older PHP versions
 }
 
 // Close statements and connection
