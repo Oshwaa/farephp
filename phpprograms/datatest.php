@@ -7,18 +7,22 @@ if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
-function addFareToDriver($conn, $driver, $fare) {
-    // Prepare the statement to update the driver's balance
-    $stmtUpdateDriver = $conn->prepare("UPDATE users SET Balance = Balance + ? WHERE ID = ?");
-    // Bind the parameters
-    $stmtUpdateDriver->bind_param("is", $fare, $driver);
-    // Execute the update query for the driver
-    if ($stmtUpdateDriver->execute()) {
-        echo "Unlock";;
-    } else {
-        echo "Error updating driver's balance: " . $stmtUpdateDriver->error;
-    }
-    $stmtUpdateDriver->close();
+function insertTransaction($conn, $sender, $amount, $type, $endpoint) {
+    $sql = "INSERT INTO transactions (ID, Date, Amount, Type, Endpoint) VALUES (?, CURDATE(), ?, ?, ?)";
+    
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("siss", $sender, $amount, $type, $endpoint);
+    $stmt->execute();  // Execute the prepared statement
+    $stmt->close();
+}
+
+function updateBalance($conn, $userID, $updateAmount) {
+    $sql = "UPDATE users SET Balance = Balance + ? WHERE ID = ?";
+    
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("is", $updateAmount, $userID);
+    $stmt->execute();  // Execute the prepared statement
+    $stmt->close();
 }
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -52,20 +56,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 if ($resultDriver->num_rows > 0) {
                     $balance = $row["Balance"];
                     if ($balance >= $fare) {
-                        $balance -= $fare; // Subtract $fare directly from $balance
-
-                        // Prepare the update statement for the current RFID
-                        $stmtUpdate = $conn->prepare("UPDATE users SET Balance = ? WHERE ID = ?");
-                        // Bind the parameters
-                        $stmtUpdate->bind_param("is", $balance, $rfid);
-                        // Execute the update query
-                        if ($stmtUpdate->execute()) {
-                            addFareToDriver($conn, $driver, $fare);
-                            
-                        } else {
-                            echo "Error updating balance: " . $stmtUpdate->error;
-                        }
-                        $stmtUpdate->close();
+                            echo "Unlock";
+                            updateBalance($conn,$rfid,-$fare);
+                            updateBalance($conn,$driver,$fare);
+                            insertTransaction($conn, $rfid, $fare,'Paid',$driver);
+                            insertTransaction($conn, $driver, $fare,'Collected',$rfid);
                     } else {
                         echo "Insufficient balance";
                     }
