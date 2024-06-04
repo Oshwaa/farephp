@@ -1,102 +1,53 @@
 <?php
 require_once "C:\\xampp\\htdocs\\phpprograms\\config.php";
+// Create connection
+$conn = new mysqli($servername, $username, $password, $dbname);
 
-// Establish database connection
-function connectToDatabase() {
-    global $servername, $username, $password, $dbname;
-    $conn = new mysqli($servername, $username, $password, $dbname);
-    if ($conn->connect_error) {
-        die("Connection failed: " . $conn->connect_error);
-    }
-    return $conn;
+// Check connection
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
 }
 
-// Function to execute prepared statement with error handling
-function executePreparedStatement($stmt) {
-    if ($stmt->execute()) {
-        return true;
-    } else {
-        echo "Error: " . $stmt->error;
-        return false;
-    }
-}
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    // Get the data from the POST request
+    $user_id = isset($_POST['user_ID']) ? $_POST['user_ID'] : null;
 
-// Function to add fare amount to driver's balance
-function addFareToDriver($conn, $driver, $fare) {
-    $stmt = $conn->prepare("UPDATE users SET Balance = Balance + ? WHERE ID = ?");
-    $stmt->bind_param("is", $fare, $driver);
-    if (executePreparedStatement($stmt)) {
-        echo "Unlock";
-    }
-    $stmt->close();
-}
-
-// Function to insert a transaction record
-function insertTransaction($conn, $sender, $amount, $type, $endpoint) {
-    $sql = "INSERT INTO transactions (ID, Date, Amount, Type, Endpoint) VALUES (?, CURDATE(), ?, ?, ?)";
+// Check if data is received
+if ($user_id !== null) {
+    // Android App registered user ID
+    $sql = "SELECT Balance FROM users WHERE ID = ?";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("siss", $sender, $amount, $type, $endpoint);
-    if (executePreparedStatement($stmt)) {
-        return true;
+
+    // Bind parameters
+    $stmt->bind_param("s", $user_id); // 's' = string putangina
+
+    // Execute the statement
+    $stmt->execute();
+
+    // Get the result
+    $result = $stmt->get_result();
+
+    // Check if there are results
+    if ($result->num_rows > 0) {
+        // Fetch the row as an associative array
+        $row = $result->fetch_assoc();
+
+        // Output the result as JSON
+        echo json_encode(['Balance' => floatval($row['Balance'])]);
     } else {
-        return false;
+        echo json_encode(['error' => 'No results']);
     }
-}
 
-// Main logic
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $conn = connectToDatabase();
-    $rfid = $_POST["rfid"];
-
-    // Check for required parameters
-    if (isset($_POST["fare"]) && isset($_POST["driver"])) {
-        $fare = $_POST["fare"];
-        $driver = $_POST["driver"];
-
-        $stmt = $conn->prepare("SELECT * FROM users WHERE ID = ?");
-        $stmt->bind_param("s", $rfid);
-        $stmt->execute();
-        $result = $stmt->get_result();
-
-        if ($result->num_rows > 0) {
-            $row = $result->fetch_assoc();
-            if ($row["ID"] == $driver) {
-                echo "Unlock";
-            } else {
-                $stmtDriver = $conn->prepare("SELECT * FROM users WHERE ID = ?");
-                $stmtDriver->bind_param("s", $driver);
-                $stmtDriver->execute();
-                $resultDriver = $stmtDriver->get_result();
-                if ($resultDriver->num_rows > 0) {
-                    $balance = $row["Balance"];
-                    if ($balance >= $fare) {
-                        $balance -= $fare;
-                        $stmtUpdate = $conn->prepare("UPDATE users SET Balance = ? WHERE ID = ?");
-                        $stmtUpdate->bind_param("is", $balance, $rfid);
-                        if (executePreparedStatement($stmtUpdate)) {
-                            if (insertTransaction($conn, $rfid, $fare, 'Paid', $driver) &&
-                                insertTransaction($conn, $driver, $fare, 'Collected', $rfid)) {
-                                addFareToDriver($conn, $driver, $fare);
-                            }
-                        }
-                        $stmtUpdate->close();
-                    } else {
-                        echo "Insufficient balance";
-                    }
-                } else {
-                    echo "Driver's RFID not found";
-                }
-                $stmtDriver->close();
-            }
-        } else {
-            echo "RFID not found";
-        }
-        $stmt->close();
-    } else {
-        echo "Fare or driver parameter is missing";
-    }
-    $conn->close();
+    // Close the statement
+    $stmt->close();
 } else {
-    echo "Invalid request method";
+    echo json_encode(['error' => 'Invalid data']);
 }
+
+} else {
+    echo json_encode(['error' => 'Invalid request method']);
+}
+
+// Close the connection
+$conn->close();
 ?>
