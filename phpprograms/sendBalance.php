@@ -19,7 +19,7 @@ if ($user_id !== null) {
     $stmt = $conn->prepare($sql);
 
     // Bind parameters
-    $stmt->bind_param("s", $user_id); // 's' = string putangina
+    $stmt->bind_param("s", $user_id); // 's' = string
 
     // Execute the statement
     $stmt->execute();
